@@ -1,0 +1,285 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gedankenlesen leicht gemacht</title>
+    <style>
+        :root {
+            --bg: #f9fafb;
+            --panel: #f3f4f6;
+            --card: #ffffff;
+            --ink: #111827;
+            --accent: #2563eb;
+            --muted: #6b7280;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial
+        }
+
+        .wrap {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 10px 10px 80px
+        }
+
+        header {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px
+        }
+
+        h1 {
+            font-size: clamp(18px,4vw,24px);
+            margin: 0;
+            line-height: 1.2
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px
+        }
+
+        button {
+            background: var(--panel);
+            color: var(--ink);
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1
+        }
+
+            button:hover {
+                border-color: #9ca3af
+            }
+
+        .board {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(1, minmax(200px, 1fr));
+        }
+
+        @media (min-width:650px) {
+            .board {
+                grid-template-columns: repeat(3, minmax(200px, 1fr));
+            }
+        }
+
+        @media (min-width:950px) {
+            .board {
+                grid-template-columns: repeat(3, minmax(240px, 1fr));
+            }
+        }
+
+        .card {
+            background: var(--card);
+            color: var(--ink);
+            border-radius: 12px;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 8px rgba(0,0,0,.1);
+            padding: 8px;
+            cursor: pointer;
+            transition: border-color .15s, transform .05s;
+        }
+
+            .card:active {
+                transform: translateY(1px)
+            }
+
+            .card header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 6px
+            }
+
+            .card h3 {
+                margin: 0;
+                font-size: 14px;
+                color: var(--ink)
+            }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4,1fr);
+            gap: 6px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .n {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed #d1d5db;
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 6px;
+            min-height: 28px
+        }
+
+        .card.selected {
+            border-color: var(--accent)
+        }
+
+        footer.panel {
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--panel);
+            border-top: 1px solid #d1d5db;
+            padding: 8px 12px;
+            text-align: right;
+            font-size: 13px;
+            color: var(--muted)
+        }
+
+        .solution {
+            position: fixed;
+            inset: auto 0 0 0;
+            background: rgba(0,0,0,.9);
+            color: #fff;
+            border-top: 1px solid #374151;
+            padding: 12px;
+            transform: translateY(100%);
+            transition: transform .2s ease;
+            max-height: 60vh;
+            overflow: auto
+        }
+
+            .solution.open {
+                transform: none
+            }
+
+            .solution h4 {
+                margin: 4px 0 8px 0
+            }
+
+        .eq {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 18px
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <h1>Gedankenlesen leicht gemacht</h1>
+            <div class="controls">
+                <button id="btn-reset">Zurücksetzen</button>
+                <button id="btn-solution">Lösung anzeigen</button>
+                <button id="btn-full">Vollbild</button>
+            </div>
+        </header>
+
+        <div id="board" class="board"></div>
+    </div>
+
+    <footer class="panel">
+        Karten auswählen → Lösung erst nach Klick
+    </footer>
+
+    <div id="solution" class="solution" aria-hidden="true">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <h4 style="margin:0">Lösung</h4>
+            <div class="controls">
+                <button id="btn-close-solution">Schließen</button>
+            </div>
+        </div>
+        <div id="sol-body"></div>
+    </div>
+
+    <script>
+        (function () {
+            const board = document.getElementById('board');
+            const btnReset = document.getElementById('btn-reset');
+            const btnFull = document.getElementById('btn-full');
+            const btnSolution = document.getElementById('btn-solution');
+            const sol = document.getElementById('solution');
+            const solBody = document.getElementById('sol-body');
+            const btnCloseSol = document.getElementById('btn-close-solution');
+
+            // Karten generieren
+            const cards = [];
+            for (let bit = 0; bit < 6; bit++) {
+                const value = 1 << bit;
+                const nums = [];
+                for (let n = 1; n <= 63; n++) {
+                    if (n & value) nums.push(n);
+                }
+                cards.push({ bit, value, nums, selected: false });
+            }
+
+            function render() {
+                board.innerHTML = '';
+                cards.forEach((c, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'card' + (c.selected ? ' selected' : '');
+                    el.innerHTML = `
+            <header>
+              <h3>Karte ${idx + 1}</h3>
+            </header>
+            <div class="grid">
+              ${c.nums.map(n => `<div class="n">${n}</div>`).join('')}
+            </div>
+          `;
+                    el.addEventListener('click', () => {
+                        c.selected = !c.selected;
+                        render();
+                    });
+                    board.appendChild(el);
+                });
+            }
+
+            function openSolution() {
+                const chosen = cards.filter(c => c.selected).map(c => c.value);
+                const total = chosen.reduce((a, b) => a + b, 0);
+                if (chosen.length === 0) {
+                    solBody.innerHTML = "<div class='eq'>Keine Karten gewählt.</div>";
+                } else {
+                    solBody.innerHTML = `<div class="eq"><b>${chosen.join(" + ")}</b> = ${total}</div>`;
+                }
+                sol.classList.add('open');
+                sol.setAttribute('aria-hidden', 'false');
+            }
+
+            btnReset.addEventListener('click', () => {
+                cards.forEach(c => c.selected = false);
+                render();
+            });
+
+            btnFull.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => { });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            btnSolution.addEventListener('click', openSolution);
+            btnCloseSol.addEventListener('click', () => {
+                sol.classList.remove('open');
+                sol.setAttribute('aria-hidden', 'true');
+            });
+
+            render();
+        })();
+    </script>
+</body>
+</html>
